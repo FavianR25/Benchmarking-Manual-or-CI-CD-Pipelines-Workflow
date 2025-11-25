@@ -5,6 +5,8 @@ from time import time
 import psutil
 import csv
 import os
+import joblib
+
 
 def log_manual(metrics: dict):
     log_path = "manual_pipeline/log_manual.csv"
@@ -16,14 +18,13 @@ def log_manual(metrics: dict):
             writer.writeheader()
         writer.writerow(metrics)
 
+
 def train_gb_manual():
     start_time = time()
     process = psutil.Process()
 
-    # Load dataset
     df = pd.read_csv("manual_pipeline/processed_manual.csv")
 
-    # Split data
     X = df.drop("Survived", axis=1)
     y = df["Survived"]
 
@@ -31,9 +32,12 @@ def train_gb_manual():
         X, y, test_size=0.3, random_state=42
     )
 
-    # Model
+    # Train Gradient Boosting
     model = GradientBoostingClassifier()
     model.fit(X_train, y_train)
+
+    # Save model
+    joblib.dump(model, "manual_pipeline/gb_model.pkl")
 
     end_time = time()
 
@@ -49,7 +53,10 @@ def train_gb_manual():
     }
 
     log_manual(metrics)
-    print("Training GB manual selesai. Log disimpan di manual_pipeline/log_manual.csv")
+
+    print("Training Gradient Boosting selesai. Model disimpan ke manual_pipeline/gb_model.pkl")
+    print("Log disimpan di manual_pipeline/log_manual.csv")
+
 
 if __name__ == "__main__":
     train_gb_manual()
