@@ -87,17 +87,6 @@ def train_gb_model():
     acc = accuracy_score(y_test, preds)
     error_rate = 1.0 - acc
 
-    non_critical_failure = 0
-    if error_rate > 0.40:
-        non_critical_failure = 1
-    if cpu_usage < 1:
-        non_critical_failure = 1
-    if memory_usage_mb > (2 * baseline_memory):  # baseline diambil dari file atau konstanta
-        non_critical_failure = 1
-    if reproducibility == 0:
-        non_critical_failure = 1
-
-
     joblib.dump(model, "manual_pipeline/gb_model.pkl")
 
     log_manual({
@@ -110,6 +99,16 @@ def train_gb_model():
         "cpu_usage": round(cpu_percent, 4),
         "memory_usage_mb": round(mem_mb, 4)
     })
+
+    non_critical_failure = 0
+    if error_rate > 0.40:
+        non_critical_failure = 1
+    if cpu_usage < 1:
+        non_critical_failure = 1
+    if memory_usage_mb > (2 * baseline_memory):  # baseline diambil dari file atau konstanta
+        non_critical_failure = 1
+    if reproducibility == 0:
+        non_critical_failure = 1
 
     print("Gradient Boosting training finished. Model saved to manual_pipeline/gb_model.pkl")
 
