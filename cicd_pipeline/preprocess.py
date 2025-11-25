@@ -1,30 +1,30 @@
-import pandas as pd
+# cicd_pipeline/preprocess.py
 
-INPUT_PATH = "train.csv"
-OUTPUT_PATH = "cicd_pipeline/processed_cicd.csv"
+import pandas as pd
 
 def preprocess():
     print("[CI/CD] Preprocessing started...")
 
-    df = pd.read_csv(INPUT_PATH)
+    df = pd.read_csv("train.csv")
 
-    # === 1. Drop columns that are not numeric or unnecessary ===
+    # Drop non-numerical & high-missing columns
     df = df.drop(columns=["Name", "Ticket", "Cabin"])
 
-    # === 2. Fill numeric missing values ===
-    df["Age"].fillna(df["Age"].median(), inplace=True)
-    df["Fare"].fillna(df["Fare"].median(), inplace=True)
+    # Fill missing values
+    df["Age"] = df["Age"].fillna(df["Age"].median())
+    df["Fare"] = df["Fare"].fillna(df["Fare"].median())
+    df["Embarked"] = df["Embarked"].fillna(df["Embarked"].mode()[0])
 
-    # === 3. Encode categorical columns ===
+    # Encode Sex
     df["Sex"] = df["Sex"].map({"male": 0, "female": 1})
 
-    df["Embarked"] = df["Embarked"].map({"S": 0, "C": 1, "Q": 2})
-    df["Embarked"].fillna(0, inplace=True)
+    # One-hot Embarked
+    df = pd.get_dummies(df, columns=["Embarked"], drop_first=True)
 
-    # === 4. Save cleaned dataset ===
-    df.to_csv(OUTPUT_PATH, index=False)
+    df.to_csv("cicd_pipeline/processed_cicd.csv", index=False)
 
-    print(f"[CI/CD] Preprocessing completed. Saved to {OUTPUT_PATH}")
+    print("[CI/CD] Preprocessing complete → cicd_pipeline/processed_cicd.csv")
+
 
 if __name__ == "__main__":
     preprocess()
