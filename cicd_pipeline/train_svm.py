@@ -81,6 +81,18 @@ def train_svm():
     acc = accuracy_score(y_test, preds)
     error_rate = 1.0 - acc
 
+    #NCF
+    non_critical_failure = 0
+    if error_rate > 0.40:
+        non_critical_failure = 1
+    if cpu_usage < 1:
+        non_critical_failure = 1
+    if memory_usage_mb > (2 * baseline_memory):  # baseline diambil dari file atau konstanta
+        non_critical_failure = 1
+    if reproducibility == 0:
+        non_critical_failure = 1
+
+
     # save model artifact
     model_path = os.path.join(os.path.dirname(__file__), "svm_model.pkl")
     joblib.dump(model, model_path)
