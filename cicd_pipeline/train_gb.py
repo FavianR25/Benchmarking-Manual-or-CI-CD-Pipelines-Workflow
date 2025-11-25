@@ -1,34 +1,38 @@
 # cicd_pipeline/train_gb.py
+
 import time
 import pandas as pd
+import joblib
 from sklearn.ensemble import GradientBoostingClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score
-import joblib
-import os
 
 from utils import log_cicd
 
+
 def read_cpu():
+    """Read total CPU jiffies from /proc/stat."""
     with open("/proc/stat", "r") as f:
-        parts = f.readline().split()[1:]
-        parts = list(map(int, parts))
-        return sum(parts)
+        fields = f.readline().split()[1:]
+        fields = list(map(int, fields))
+        return sum(fields)
+
 
 def read_memory_mb():
+    """Read RSS memory usage for this process in megabytes."""
     with open("/proc/self/status", "r") as f:
         for line in f:
             if line.startswith("VmRSS:"):
                 return int(line.split()[1]) / 1024
     return 0
 
+
 def train_gb():
+
+    # ---------- SETUP ----------
     setup_start = time.time()
 
-    df = pd.read_csv("train.csv")
-
-    df = df.drop(columns=["Name", "Ticket", "Cabin", "Embarked"])
-    df["Sex"] = df["Sex"].map({"male": 0, "female": 1})
+    df = pd.read_csv("cicd_pipeline/processed_cicd.csv")
 
     X = df.drop("Survived", axis=1)
     y = df["Survived"]
@@ -39,8 +43,9 @@ def train_gb():
 
     setup_time = time.time() - setup_start
 
+    # ---------- TRAIN ----------
     cpu_before = read_cpu()
-    start = time.time()
+    t0 = time.time()
 
     try:
         model = GradientBoostingClassifier()
@@ -49,19 +54,22 @@ def train_gb():
     except Exception:
         reproducibility = 0
 
-    deployment_time = time.time() - start
+    deployment_time = time.time() - t0
     cpu_after = read_cpu()
 
     cpu_usage = ((cpu_after - cpu_before) / max(deployment_time, 1e-9)) / 100000
 
+    # ---------- EVAL ----------
     preds = model.predict(X_test)
     acc = accuracy_score(y_test, preds)
     error_rate = 1 - acc
 
     memory_mb = read_memory_mb()
 
+    # Save model
     joblib.dump(model, "cicd_pipeline/gb_model.pkl")
 
+    # Logging
     log_cicd({
         "workflow": "cicd",
         "model": "gradient_boosting",
