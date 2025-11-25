@@ -12,69 +12,62 @@ HEADER = [
     "error_rate",
     "reproducibility",
     "setup_time",
-    "cpu_usage",           # percent during training (0-100)
-    "memory_usage_mb"      # VmRSS after training (MB)
+    "cpu_usage",
+    "memory_usage_mb",
+    "non_critical_failure"
 ]
 
+BASELINE_MEMORY_MB = 150  # Kamu bisa adjust ini berdasarkan median awal.
+
 def ensure_log_exists():
+    """Ensures the CSV file exists with a header."""
+    folder = os.path.dirname(LOG_PATH)
+    if folder and not os.path.exists(folder):
+        os.makedirs(folder, exist_ok=True)
+
     if not os.path.exists(LOG_PATH):
-        os.makedirs(os.path.dirname(LOG_PATH), exist_ok=True)
         with open(LOG_PATH, mode="w", newline="") as f:
             writer = csv.writer(f)
             writer.writerow(HEADER)
 
-def log_cicd(entry: dict):
-    """
-    entry keys should include:
-    workflow, model, deployment_time, error_rate, reproducibility, setup_time, cpu_usage, memory_usage_mb
-    """
+
+def compute_non_critical_failure(metrics):
+    """Calculate non-critical failure based on thresholds."""
+    error_rate = metrics["error_rate"]
+    cpu = metrics["cpu_usage"]
+    mem = metrics["memory_usage_mb"]
+    reproducibility = metrics["reproducibility"]
+
+    if error_rate > 0.40:
+        return 1
+    if cpu < 1:
+        return 1
+    if mem > 2 * BASELINE_MEMORY_MB:
+        return 1
+    if reproducibility == 0:
+        return 1
+
+    return 0
+
+
+def log_cicd(metrics: dict):
+    """Append metrics including non-critical failure."""
     ensure_log_exists()
+
+    metrics["non_critical_failure"] = compute_non_critical_failure(metrics)
+
     with open(LOG_PATH, mode="a", newline="") as f:
         writer = csv.writer(f)
         writer.writerow([
-            entry.get("workflow"),
-            entry.get("model"),
-            entry.get("deployment_time"),
-            entry.get("error_rate"),
-            entry.get("reproducibility"),
-            entry.get("setup_time"),
-            entry.get("cpu_usage"),
-            entry.get("memory_usage_mb")
+            metrics["workflow"],
+            metrics["model"],
+            metrics["deployment_time"],
+            metrics["error_rate"],
+            metrics["reproducibility"],
+            metrics["setup_time"],
+            metrics["cpu_usage"],
+            metrics["memory_usage_mb"],
+            metrics["non_critical_failure"]
         ])
 
-# -----------------
-# helper functions for /proc reads (Linux)
-# -----------------
-def _read_proc_stat():
-    """Return (utime_ticks, stime_ticks) as ints for current process."""
-    with open("/proc/self/stat", "r") as f:
-        parts = f.read().split()
-        # according to procfs, utime is 14th (index 13), stime is 15th (index 14)
-        utime = int(parts[13])
-        stime = int(parts[14])
-    return utime, stime
-
-def process_cpu_seconds():
-    """
-    Return process CPU time (user+system) in seconds.
-    Uses system clock ticks (/proc/sys/kernel/osrelease CLK_TCK via os.sysconf).
-    """
-    utime, stime = _read_proc_stat()
-    clk_tck = os.sysconf(os.sysconf_names['SC_CLK_TCK'])
-    return (utime + stime) / clk_tck
-
-def process_memory_mb():
-    """
-    Return VmRSS in MB (resident set size). If VmRSS not found return 0.0
-    """
-    try:
-        with open("/proc/self/status", "r") as f:
-            for line in f:
-                if line.startswith("VmRSS:"):
-                    parts = line.split()
-                    # parts[1] is value, in kB
-                    kb = float(parts[1])
-                    return kb / 1024.0
-    except Exception:
-        pass
-    return 0.0
+    print("Logged CI/CD metrics:", metrics)
