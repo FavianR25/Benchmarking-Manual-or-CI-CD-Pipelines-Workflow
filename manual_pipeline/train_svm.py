@@ -1,63 +1,75 @@
 import pandas as pd
-from sklearn.model_selection import train_test_split
 from sklearn.svm import SVC
-from time import time
-import psutil
-import csv
-import os
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score
 import joblib
+import time
+import psutil
+import os
+from utils import log_manual
 
+def train_svm_model():
+    start_time = time.time()
+    setup_start = time.perf_counter()
 
-def log_manual(metrics: dict):
-    log_path = "manual_pipeline/log_manual.csv"
-    file_exists = os.path.isfile(log_path)
+    # Load dataset
+    try:
+        df = pd.read_csv("manual_pipeline/processed_manual.csv")
+    except Exception as e:
+        log_manual({
+            "workflow": "manual",
+            "model": "svm",
+            "deployment_time": 0,
+            "error_rate": 1,
+            "reproducibility": 0,
+            "setup_time": 0,
+            "cpu_usage": 0,
+            "memory_usage_mb": 0
+        })
+        raise e
 
-    with open(log_path, "a", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=metrics.keys())
-        if not file_exists:
-            writer.writeheader()
-        writer.writerow(metrics)
-
-
-def train_svm_manual():
-    start_time = time()
-    process = psutil.Process()
-
-    # Load preprocessed dataset
-    df = pd.read_csv("manual_pipeline/processed_manual.csv")
-
+    # Split dataset
     X = df.drop("Survived", axis=1)
     y = df["Survived"]
 
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.3, random_state=42
-    )
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-    # Train SVM model
-    model = SVC()
-    model.fit(X_train, y_train)
+    # Setup time
+    setup_time = time.perf_counter() - setup_start
 
-    # Save model for deployment
+    # Measure CPU & Memory before training
+    process = psutil.Process(os.getpid())
+    cpu_usage = process.cpu_percent(interval=0.2)
+    mem_usage = process.memory_info().rss / (1024 * 1024)
+
+    error_rate = 0
+
+    try:
+        model = SVC(kernel='rbf', probability=True)
+        model.fit(X_train, y_train)
+    except:
+        error_rate = 1
+
+    # Save model
     joblib.dump(model, "manual_pipeline/svm_model.pkl")
 
-    end_time = time()
+    # Deployment time
+    deployment_time = time.time() - start_time
 
-    metrics = {
+    # Reproducibility flag
+    reproducibility = 1 if error_rate == 0 else 0
+
+    # Log
+    log_manual({
         "workflow": "manual",
         "model": "svm",
-        "deployment_time": end_time - start_time,
-        "error_rate": 0,
-        "reproducibility": 1,
-        "setup_time": start_time - process.create_time(),
-        "cpu_usage": process.cpu_percent(),
-        "memory_usage_mb": process.memory_info().rss / (1024 * 1024)
-    }
-
-    log_manual(metrics)
-
-    print("Training SVM selesai. Model disimpan ke manual_pipeline/svm_model.pkl")
-    print("Log disimpan di manual_pipeline/log_manual.csv")
-
+        "deployment_time": deployment_time,
+        "error_rate": error_rate,
+        "reproducibility": reproducibility,
+        "setup_time": setup_time,
+        "cpu_usage": cpu_usage,
+        "memory_usage_mb": mem_usage
+    })
 
 if __name__ == "__main__":
-    train_svm_manual()
+    train_svm_model()
