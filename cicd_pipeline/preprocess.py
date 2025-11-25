@@ -1,30 +1,32 @@
-# cicd_pipeline/preprocess.py
-
 import pandas as pd
+from sklearn.preprocessing import StandardScaler
+import os
 
-def preprocess():
-    print("[CI/CD] Preprocessing started...")
+def preprocess_cicd():
+    print("[CI/CD] Preprocessing...")
 
     df = pd.read_csv("train.csv")
 
-    # Drop non-numerical & high-missing columns
-    df = df.drop(columns=["Name", "Ticket", "Cabin"])
+    # Drop columns identical to manual pipeline
+    df = df.drop(["Cabin", "Ticket", "Name"], axis=1)
 
-    # Fill missing values
+    # Handle missing values
     df["Age"] = df["Age"].fillna(df["Age"].median())
     df["Fare"] = df["Fare"].fillna(df["Fare"].median())
     df["Embarked"] = df["Embarked"].fillna(df["Embarked"].mode()[0])
 
-    # Encode Sex
-    df["Sex"] = df["Sex"].map({"male": 0, "female": 1})
+    # One-hot encoding
+    df = pd.get_dummies(df, columns=["Sex", "Embarked"], drop_first=True)
 
-    # One-hot Embarked
-    df = pd.get_dummies(df, columns=["Embarked"], drop_first=True)
+    # Scale numerical data (same as manual pipeline)
+    scaler = StandardScaler()
+    numeric_cols = ["Age", "Fare"]
+    df[numeric_cols] = scaler.fit_transform(df[numeric_cols])
 
-    df.to_csv("cicd_pipeline/processed_cicd.csv", index=False)
+    output_path = "cicd_pipeline/processed_cicd.csv"
+    df.to_csv(output_path, index=False)
 
-    print("[CI/CD] Preprocessing complete → cicd_pipeline/processed_cicd.csv")
-
+    print(f"[CI/CD] Preprocessing completed → {output_path}")
 
 if __name__ == "__main__":
-    preprocess()
+    preprocess_cicd()
