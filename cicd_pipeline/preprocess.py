@@ -1,7 +1,7 @@
 import pandas as pd
 import os
 
-INPUT_PATH = "train.csv"
+INPUT_PATH = "dataset/train.csv"
 OUTPUT_PATH = "cicd_pipeline/processed_cicd.csv"
 
 def preprocess():
